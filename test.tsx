@@ -24,6 +24,18 @@ interface User {
   gbl?: string;
 }
 
+interface TrinoResponse {
+  success: boolean;
+  data?: {
+    job_title: string;
+    team_name: string;
+    country: string;
+    metier: string;
+    gbl: string;
+  };
+  error?: string;
+}
+
 // Global user cache for instant access
 let globalUserData: User | null = null;
 
@@ -50,10 +62,13 @@ export function AuthProvider({children}: {children: React.ReactNode}){
   useEffect(() => {
     async function checkAuth() {
       try {
-        // Fetch user and Trino data in PARALLEL
-        const [currentUser, trinoData] = await Promise.all([
+        // Fetch user and Trino data in PARALLEL for maximum speed
+        const [currentUser, trinoResponse] = await Promise.all([
           authApi.getCurrentUser(),
-          authApi.getUserTrinoData().catch(() => ({ success: false }))
+          authApi.getUserTrinoData().catch((): TrinoResponse => ({ 
+            success: false, 
+            error: 'Trino data unavailable' 
+          }))
         ]);
 
         if(!currentUser){
@@ -61,9 +76,14 @@ export function AuthProvider({children}: {children: React.ReactNode}){
           return;
         }
         
-        // Merge Trino data into user object
-        if(trinoData?.success && trinoData?.data){
-          Object.assign(currentUser, trinoData.data);
+        // Merge Trino data into user object if available
+        const trinoData = trinoResponse as TrinoResponse;
+        if(trinoData.success && trinoData.data){
+          currentUser.job_title = trinoData.data.job_title || '';
+          currentUser.team_name = trinoData.data.team_name || '';
+          currentUser.country = trinoData.data.country || '';
+          currentUser.metier = trinoData.data.metier || '';
+          currentUser.gbl = trinoData.data.gbl || '';
         }
         
         // Set both context and global cache
@@ -97,13 +117,14 @@ export const useAuth = () => {
   }
   return context;
 };
------------------------
+---------------
 "use client";
 
 import {FiBell, FiUser} from "react-icons/fi";
 import "./header.css";
 import { useEffect, useState } from "react";
 import { getGlobalUser } from "../../app/AuthProvider";
+import DotFlashing from "@/components/ui/loading/DotFlashing";
 
 type HeaderProps = {
   title: string;
@@ -112,14 +133,20 @@ type HeaderProps = {
 export default function Header({title}: HeaderProps){
   const [userName, setUserName] = useState<string>('');
   const [teamName, setTeamName] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    // Get data from global cache - INSTANT, NO DELAY!
-    const user = getGlobalUser();
-    if(user) {
-      setUserName(user.full_name || user.username || 'User');
-      setTeamName(user.team_name || '');
-    }
+    // Small delay to ensure global user is set
+    const timer = setTimeout(() => {
+      const user = getGlobalUser();
+      if(user) {
+        setUserName(user.full_name || user.username || '');
+        setTeamName(user.team_name || '');
+      }
+      setIsLoading(false);
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, []);
 
   return(
@@ -128,7 +155,23 @@ export default function Header({title}: HeaderProps){
         <div className="header__text">
           <h1 className="header__title">{title}</h1>
           <h2 className="header__subtitle">
-            Welcome back {userName || 'User'}{teamName ? ` | ${teamName}` : ''}
+            Welcome back{' '}
+            {isLoading ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <DotFlashing size="small" />
+              </span>
+            ) : (
+              <>
+                {userName || 'User'}
+                {isLoading ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '8px' }}>
+                    <DotFlashing size="small" />
+                  </span>
+                ) : (
+                  teamName && ` | ${teamName}`
+                )}
+              </>
+            )}
           </h2>
         </div>
       </div>
@@ -144,362 +187,3 @@ export default function Header({title}: HeaderProps){
     </header>
   );
 }
--------------------
-import React from 'react';
-import './DotPulse.css';
-
-interface DotPulseProps {
-  size?: 'small' | 'medium' | 'large';
-  color?: string;
-}
-
-export default function DotPulse({ size = 'medium', color = '#00965e' }: DotPulseProps) {
-  return (
-    <div className={`dot-pulse-container dot-pulse-${size}`}>
-      <div className="dot-pulse" style={{ backgroundColor: color }}></div>
-    </div>
-  );
-}
-_________________________
-.dot-pulse-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.dot-pulse {
-  position: relative;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background-color: #00965e;
-  animation: dot-pulse-animation 1.4s infinite ease-in-out both;
-}
-
-.dot-pulse::before,
-.dot-pulse::after {
-  content: '';
-  display: inline-block;
-  position: absolute;
-  top: 0;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background-color: #00965e;
-  animation: dot-pulse-animation 1.4s infinite ease-in-out both;
-}
-
-.dot-pulse::before {
-  left: -15px;
-  animation-delay: -0.32s;
-}
-
-.dot-pulse::after {
-  left: 15px;
-  animation-delay: 0.16s;
-}
-
-@keyframes dot-pulse-animation {
-  0%, 80%, 100% {
-    transform: scale(0);
-    opacity: 0.5;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* Size variants */
-.dot-pulse-small .dot-pulse,
-.dot-pulse-small .dot-pulse::before,
-.dot-pulse-small .dot-pulse::after {
-  width: 6px;
-  height: 6px;
-}
-
-.dot-pulse-small .dot-pulse::before {
-  left: -10px;
-}
-
-.dot-pulse-small .dot-pulse::after {
-  left: 10px;
-}
-
-.dot-pulse-large .dot-pulse,
-.dot-pulse-large .dot-pulse::before,
-.dot-pulse-large .dot-pulse::after {
-  width: 14px;
-  height: 14px;
-}
-
-.dot-pulse-large .dot-pulse::before {
-  left: -20px;
-}
-
-.dot-pulse-large .dot-pulse::after {
-  left: 20px;
-}
-______________________
-import React from 'react';
-import './DotFlashing.css';
-
-interface DotFlashingProps {
-  size?: 'small' | 'medium' | 'large';
-  color?: string;
-}
-
-export default function DotFlashing({ size = 'medium', color = '#00965e' }: DotFlashingProps) {
-  return (
-    <div className={`dot-flashing-container dot-flashing-${size}`}>
-      <div className="dot-flashing" style={{ backgroundColor: color }}></div>
-      <div className="dot-flashing" style={{ backgroundColor: color, animationDelay: '0.2s' }}></div>
-      <div className="dot-flashing" style={{ backgroundColor: color, animationDelay: '0.4s' }}></div>
-    </div>
-  );
-}
-__________________________
-.dot-flashing-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.dot-flashing {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background-color: #00965e;
-  animation: dot-flashing-animation 1s infinite linear alternate;
-}
-
-@keyframes dot-flashing-animation {
-  0% {
-    opacity: 0.2;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-/* Size variants */
-.dot-flashing-small .dot-flashing {
-  width: 6px;
-  height: 6px;
-}
-
-.dot-flashing-large .dot-flashing {
-  width: 14px;
-  height: 14px;
-}
------------------------
-import React from 'react';
-import './SkeletonLoading.css';
-
-export default function SkeletonLoading() {
-  return (
-    <div className="skeleton-loading-wrapper">
-      <div className="skeleton-loading-container">
-        {/* Header Skeleton */}
-        <div className="skeleton-header">
-          <div className="skeleton-box skeleton-title"></div>
-          <div className="skeleton-box skeleton-subtitle"></div>
-        </div>
-
-        {/* Main Content Skeleton */}
-        <div className="skeleton-content">
-          <div className="skeleton-sidebar">
-            <div className="skeleton-box skeleton-menu-item"></div>
-            <div className="skeleton-box skeleton-menu-item"></div>
-            <div className="skeleton-box skeleton-menu-item"></div>
-            <div className="skeleton-box skeleton-menu-item"></div>
-          </div>
-          
-          <div className="skeleton-main">
-            <div className="skeleton-card">
-              <div className="skeleton-box skeleton-card-title"></div>
-              <div className="skeleton-box skeleton-card-line"></div>
-              <div className="skeleton-box skeleton-card-line"></div>
-              <div className="skeleton-box skeleton-card-line short"></div>
-            </div>
-            
-            <div className="skeleton-card">
-              <div className="skeleton-box skeleton-card-title"></div>
-              <div className="skeleton-box skeleton-card-line"></div>
-              <div className="skeleton-box skeleton-card-line"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Loading text with BNPP green dots */}
-        <div className="skeleton-loading-text">
-          <span>Loading your workspace</span>
-          <div className="skeleton-dots">
-            <div className="skeleton-dot"></div>
-            <div className="skeleton-dot"></div>
-            <div className="skeleton-dot"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-__________________
-.skeleton-loading-wrapper {
-  width: 100vw;
-  height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 9999;
-}
-
-.skeleton-loading-container {
-  width: 90%;
-  max-width: 1200px;
-  padding: 40px;
-}
-
-.skeleton-box {
-  background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
-  background-size: 200% 100%;
-  animation: skeleton-loading 1.5s infinite;
-  border-radius: 8px;
-}
-
-@keyframes skeleton-loading {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-.skeleton-header {
-  margin-bottom: 40px;
-}
-
-.skeleton-title {
-  height: 48px;
-  width: 300px;
-  margin-bottom: 16px;
-}
-
-.skeleton-subtitle {
-  height: 24px;
-  width: 500px;
-}
-
-.skeleton-content {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 40px;
-}
-
-.skeleton-sidebar {
-  width: 250px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.skeleton-menu-item {
-  height: 48px;
-  width: 100%;
-}
-
-.skeleton-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.skeleton-card {
-  background: white;
-  padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.skeleton-card-title {
-  height: 28px;
-  width: 200px;
-  margin-bottom: 16px;
-}
-
-.skeleton-card-line {
-  height: 16px;
-  width: 100%;
-  margin-bottom: 12px;
-}
-
-.skeleton-card-line.short {
-  width: 60%;
-}
-
-.skeleton-loading-text {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  font-size: 18px;
-  font-weight: 500;
-  color: #666;
-  margin-top: 40px;
-}
-
-.skeleton-dots {
-  display: flex;
-  gap: 6px;
-}
-
-.skeleton-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: #00965e;
-  animation: skeleton-dot-bounce 1.4s infinite ease-in-out both;
-}
-
-.skeleton-dot:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
-.skeleton-dot:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes skeleton-dot-bounce {
-  0%, 80%, 100% {
-    transform: scale(0);
-    opacity: 0.5;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .skeleton-content {
-    flex-direction: column;
-  }
-  
-  .skeleton-sidebar {
-    width: 100%;
-  }
-  
-  .skeleton-subtitle {
-    width: 100%;
-  }
-}
-_____________________
