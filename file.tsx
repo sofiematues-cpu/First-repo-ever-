@@ -1,246 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { FiMail, FiUser, FiGlobe, FiBriefcase, FiUsers, FiMapPin, FiSun, FiMoon } from "react-icons/fi";
-import { Header } from "@/components/layout/header";
-import { authApi } from "@/lib/api";
-import { getGlobalUser } from "../../app/AuthProvider";
-import type { User, ProfileSettings, MyProfileProps } from "./my-profile.types";
-import "@/tailwind/components/my-profile/my-profile.css";
-import DotFlashing from "@/components/ui/loading/DotFlashing";
-
-export function MyProfile({ className = "" }: MyProfileProps) {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isError, setIsError] = useState<string | null>(null);
-  const [settings, setSettings] = useState<ProfileSettings>({
-    pushNotifications: false,
-    darkMode: false,
-    language: "English",
-  });
-
-  // Fetch user data from global cache (instant!) or fallback to API
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        // Try global cache first (instant!)
-        const cachedUser = getGlobalUser();
-        if(cachedUser) {
-          setUser(cachedUser);
-          setLoading(false);
-          return;
-        }
-
-        // Fallback: Fetch from API if cache not available
-        const [userData, trinoData] = await Promise.all([
-          authApi.getCurrentUser(),
-          authApi.getUserTrinoData().catch(() => ({ success: false }))
-        ]);
-        
-        if (userData) {
-          // Merge Trino data
-          if(trinoData.success && trinoData.data){
-            userData.job_title = trinoData.data.job_title;
-            userData.team_name = trinoData.data.team_name;
-            userData.country = trinoData.data.country;
-            userData.metier = trinoData.data.metier;
-            userData.gbl = trinoData.data.gbl;
-          }
-          setUser(userData);
-        } else {
-          router.push('/');
-        }
-      } catch (err) {
-        setIsError('Failed to load user data');
-        console.error('Error fetching user:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchUser();
-  }, [router]);
-
-  // Load dark mode preference
-  useEffect(() => {
-    const savedDarkMode = localStorage.getItem("darkMode");
-    if (savedDarkMode) {
-      const isDark = savedDarkMode === "true";
-      setSettings(prev => ({ ...prev, darkMode: isDark }));
-      document.documentElement.classList.toggle("dark-mode", isDark);
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    const newDarkMode = !settings.darkMode;
-    setSettings(prev => ({ ...prev, darkMode: newDarkMode }));
-    document.documentElement.classList.toggle("dark-mode", newDarkMode);
-    localStorage.setItem("darkMode", String(newDarkMode));
-  };
-
-  const handleLogout = async () => {
-    try {
-      await authApi.logout();
-      router.push("/");
-    } catch (err) {
-      console.error("Logout failed:", err);
-    }
-  };
-
-  if (loading) {
-    return (
-      <>
-        <Header title="My Profile" />
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-        </div>
-      </>
-    );
-  }
-
-  if (!user) {
-    return (
-      <>
-        <Header title="My Profile" />
-        <div className="bg-red-50 border-l-4 border-red-300 rounded-lg p-6 m-8">
-          <p className="text-red-800">{isError || "User not found"}</p>
-          <a href="/" className="text-primary-600 hover:text-primary-700 mt-2 inline-block">
-            Go to login
-          </a>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <Header title="My Profile" />
-      <div className={`profile-page ${className}`}>
-        {/* Profile Header Card */}
-        <div className="profile-header-card">
-          <div className="profile-avatar-section">
-            <div className="profile-avatar">
-              {user.profile_picture ? (
-                <img src={user.profile_picture} alt={user.full_name} className="profile-avatar-img" />
-              ) : (
-                <div className="profile-avatar-img bg-primary-300 flex items-center justify-center text-white text-4xl font-bold">
-                  {user.first_name?.[0] || user.email[0].toUpperCase()}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="profile-info">
-            <h2 className="profile-name">{user.full_name}</h2>
-            <p className="profile-role">{user.oidc_provider || "SSO User"}</p>
-          </div>
-        </div>
-
-        {/* Account Details */}
-        <div className="profile-card">
-          <h3 className="profile-card-title">Account Details</h3>
-          <div className="profile-info-list">
-            <div className="profile-info-item">
-              <FiMail className="profile-icon" />
-              <span className="profile-label">Email:</span>
-              <span className="profile-value">{user.email}</span>
-            </div>
-            
-            <div className="profile-info-item">
-              <FiUser className="profile-icon" />
-              <span className="profile-label">Username:</span>
-              <span className="profile-value">{user.username}</span>
-            </div>
-            
-            <div className="profile-info-item">
-              <FiGlobe className="profile-icon" />
-              <span className="profile-label">OIDC Provider:</span>
-              <span className="profile-value">{user.oidc_provider || "N/A"}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Work Information - WITH DOT LOADING */}
-        <div className="profile-card">
-          <h3 className="profile-card-title">Work Information</h3>
-          <div className="profile-info-list">
-            <div className="profile-info-item">
-              <FiBriefcase className="profile-icon" />
-              <span className="profile-label">Job Title:</span>
-              <span className="profile-value">
-                {user.job_title ? user.job_title : <DotFlashing size="small" />}
-              </span>
-            </div>
-
-            <div className="profile-info-item">
-              <FiUsers className="profile-icon" />
-              <span className="profile-label">Team:</span>
-              <span className="profile-value">
-                {user.team_name ? user.team_name : <DotFlashing size="small" />}
-              </span>
-            </div>
-
-            <div className="profile-info-item">
-              <FiMapPin className="profile-icon" />
-              <span className="profile-label">Country:</span>
-              <span className="profile-value">
-                {user.country ? user.country : <DotFlashing size="small" />}
-              </span>
-            </div>
-
-            <div className="profile-info-item">
-              <FiBriefcase className="profile-icon" />
-              <span className="profile-label">Metier:</span>
-              <span className="profile-value">
-                {user.metier ? user.metier : <DotFlashing size="small" />}
-              </span>
-            </div>
-
-            <div className="profile-info-item">
-              <FiGlobe className="profile-icon" />
-              <span className="profile-label">GBL:</span>
-              <span className="profile-value">
-                {user.gbl ? user.gbl : <DotFlashing size="small" />}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Preferences */}
-        <div className="profile-card">
-          <h3 className="profile-card-title">Preferences</h3>
-          <div className="profile-setting-list">
-            <div className="profile-setting-item">
-              <div className="profile-setting-info">
-                {settings.darkMode ? <FiMoon className="profile-icon" /> : <FiSun className="profile-icon" />}
-                <span className="profile-label">Dark Mode</span>
-              </div>
-              <button 
-                onClick={toggleDarkMode} 
-                className={`profile-toggle ${settings.darkMode ? "profile-toggle-active" : ""}`}
-              >
-                <span className="profile-toggle-slider"></span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Logout Button */}
-        <button onClick={handleLogout} className="profile-logout-button">
-          Logout
-        </button>
-      </div>
-    </>
-  );
-}
-
-export default MyProfile;
---------------
-"use client";
-
 import { useEffect, useState, createContext, useContext } from "react";
-import { usePathname } from "next/navigation";
 import { authApi } from "@/lib/api";
 import SkeletonLoading from "@/components/ui/loading/SkeletonLoading";
 import AuthenticationLoading from "@/components/ui/loading/AuthenticationLoading";
@@ -287,26 +47,13 @@ export const getGlobalUser = (): User | null => {
   return globalUserData;
 };
 
-// Session storage key for authentication state
-const AUTH_SESSION_KEY = 'qdi_portal_auth_initialized';
-
-// Check if this is first authentication (real backend logic)
+// Check if this is first authentication
 const isFirstAuthentication = (): boolean => {
   if (typeof window === 'undefined') return true;
   
-  // Check if user has an active session cookie/token
-  const hasSession = document.cookie.includes('sessionid') || 
-                     document.cookie.includes('csrftoken') ||
-                     sessionStorage.getItem(AUTH_SESSION_KEY) !== null;
-  
-  return !hasSession;
-};
-
-// Mark authentication as complete
-const markAuthenticationComplete = () => {
-  if (typeof window !== 'undefined') {
-    sessionStorage.setItem(AUTH_SESSION_KEY, 'true');
-  }
+  // Check session storage for previous auth
+  const hasAuthSession = sessionStorage.getItem('qdi_auth_complete');
+  return !hasAuthSession;
 };
 
 const AuthContext = createContext<{
@@ -319,14 +66,9 @@ const AuthContext = createContext<{
 export function AuthProvider({children}: {children: React.ReactNode}){
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isFirstAuth, setIsFirstAuth] = useState(true);
-  const pathname = usePathname();
+  const [isFirstAuth] = useState(isFirstAuthentication());
 
   useEffect(() => {
-    // Determine if this is first authentication
-    const firstAuth = isFirstAuthentication();
-    setIsFirstAuth(firstAuth);
-
     async function checkAuth() {
       try {
         // Fetch user and Trino data in parallel
@@ -353,12 +95,15 @@ export function AuthProvider({children}: {children: React.ReactNode}){
           currentUser.gbl = trinoData.data.gbl || '';
         }
         
-        // Set user in context and global cache
+        // Set user
         setUser(currentUser);
         setGlobalUser(currentUser);
         
         // Mark auth as complete
-        markAuthenticationComplete();
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('qdi_auth_complete', 'true');
+        }
+        
         setLoading(false);
       } catch(error){
         console.log("Authentication error:", error);
@@ -369,13 +114,14 @@ export function AuthProvider({children}: {children: React.ReactNode}){
     checkAuth();
   }, []);
 
+  // Show loading based on auth state
   if(loading || !user){
-    // Show auth loading ONLY on first authentication
+    // First time login - show auth loading ONLY
     if(isFirstAuth) {
       return <AuthenticationLoading />;
     }
     
-    // Show skeleton with header/sidebar for subsequent loads
+    // Subsequent loads - show skeleton with header/sidebar
     return <SkeletonLoading showHeaderSidebar={true} />;
   }
 
@@ -393,7 +139,80 @@ export const useAuth = () => {
   }
   return context;
 };
-_____________________
+-----------------
+"use client";
+
+import {FiBell, FiUser} from "react-icons/fi";
+import "./header.css";
+import { useEffect, useState } from "react";
+import { getGlobalUser } from "../../app/AuthProvider";
+import DotFlashing from "@/components/ui/loading/DotFlashing";
+
+type HeaderProps = {
+  title: string;
+};
+
+export default function Header({title}: HeaderProps){
+  const [userName, setUserName] = useState<string>('');
+  const [teamName, setTeamName] = useState<string>('');
+  const [dataReady, setDataReady] = useState(false);
+  
+  useEffect(() => {
+    let attempts = 0;
+    const maxAttempts = 15;
+    
+    const checkUserData = () => {
+      const user = getGlobalUser();
+      
+      if(user && user.full_name) {
+        setUserName(user.full_name || user.username || '');
+        setTeamName(user.team_name || '');
+        setDataReady(true);
+      } else if (attempts < maxAttempts) {
+        attempts++;
+        setTimeout(checkUserData, 150);
+      } else {
+        setDataReady(true);
+      }
+    };
+
+    checkUserData();
+  }, []);
+
+  return(
+    <header className="header">
+      <div className="header__left">
+        <div className="header__text">
+          <h1 className="header__title">{title}</h1>
+          <h2 className="header__subtitle">
+            {!dataReady || !userName ? (
+              // Show ONLY dots while loading - NO "User" text
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <DotFlashing size="small" />
+              </span>
+            ) : (
+              // Show actual data when ready
+              <>
+                Welcome back {userName}
+                {teamName && ` | ${teamName}`}
+              </>
+            )}
+          </h2>
+        </div>
+      </div>
+
+      <div className="header__center">
+        <input type="text" placeholder="Search dashboards, products, clients..." className="header__search" />
+      </div>
+
+      <div className="header__right">
+        <a href="/my-profile"><FiBell className="header__icon"/></a>
+        <a href="/my-profile"><FiUser className="header__icon"/></a>
+      </div>
+    </header>
+  );
+}
+___________________
 import React from 'react';
 import './SkeletonLoading.css';
 import Header from '@/components/layout/header/header';
@@ -405,15 +224,15 @@ interface SkeletonLoadingProps {
 
 export default function SkeletonLoading({ showHeaderSidebar = false }: SkeletonLoadingProps) {
   if (showHeaderSidebar) {
-    // Show actual header and sidebar with skeleton content
+    // Show actual header and sidebar with skeleton content area
     return (
       <div className="skeleton-with-layout">
-        <Header title="Loading..." />
+        <Header title="Loading" />
         <div className="skeleton-layout-container">
           <Sidebar />
           <div className="skeleton-content-area">
-            <div className="skeleton-content-loading">
-              {/* Content skeleton cards */}
+            {/* Beautiful skeleton content */}
+            <div className="skeleton-content-wrapper">
               <div className="skeleton-card">
                 <div className="skeleton-box skeleton-card-title"></div>
                 <div className="skeleton-box skeleton-card-line"></div>
@@ -433,6 +252,16 @@ export default function SkeletonLoading({ showHeaderSidebar = false }: SkeletonL
                 <div className="skeleton-box skeleton-card-line"></div>
                 <div className="skeleton-box skeleton-card-line short"></div>
               </div>
+
+              {/* Loading text with dots */}
+              <div className="skeleton-loading-text">
+                <span>Loading your workspace</span>
+                <div className="skeleton-dots">
+                  <div className="skeleton-dot"></div>
+                  <div className="skeleton-dot"></div>
+                  <div className="skeleton-dot"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -440,7 +269,7 @@ export default function SkeletonLoading({ showHeaderSidebar = false }: SkeletonL
     );
   }
 
-  // Original full-screen skeleton (for first load scenarios)
+  // Original beautiful full-screen skeleton
   return (
     <div className="skeleton-loading-wrapper">
       <div className="skeleton-loading-container">
@@ -488,19 +317,20 @@ export default function SkeletonLoading({ showHeaderSidebar = false }: SkeletonL
     </div>
   );
 }
-___________________
-/* Original full-screen skeleton */
+_________________
+/* Full-screen skeleton wrapper */
 .skeleton-loading-wrapper {
   width: 100vw;
   height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   position: fixed;
   top: 0;
   left: 0;
   z-index: 9999;
+  padding-top: 10vh;  /* Centered nicely */
 }
 
 .skeleton-loading-container {
@@ -631,7 +461,7 @@ ___________________
   }
 }
 
-/* NEW: Skeleton with actual header/sidebar layout */
+/* Skeleton with actual header/sidebar layout */
 .skeleton-with-layout {
   min-height: 100vh;
   background: #f5f7fa;
@@ -639,21 +469,25 @@ ___________________
 
 .skeleton-layout-container {
   display: flex;
-  min-height: calc(100vh - 80px); /* Adjust based on your header height */
+  min-height: calc(100vh - 80px);
 }
 
 .skeleton-content-area {
   flex: 1;
   padding: 32px;
   overflow-y: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 5vh;  /* Centered in content area */
 }
 
-.skeleton-content-loading {
+.skeleton-content-wrapper {
+  width: 100%;
+  max-width: 1200px;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
 }
 
 /* Responsive */
@@ -673,108 +507,9 @@ ___________________
   .skeleton-layout-container {
     flex-direction: column;
   }
+
+  .skeleton-loading-wrapper {
+    padding-top: 5vh;
+  }
 }
-_______________
-"use client";
-
-import {FiBell, FiUser} from "react-icons/fi";
-import "./header.css";
-import { useEffect, useState } from "react";
-import { getGlobalUser } from "../../app/AuthProvider";
-import DotFlashing from "@/components/ui/loading/DotFlashing";
-
-type HeaderProps = {
-  title: string;
-};
-
-export default function Header({title}: HeaderProps){
-  const [userName, setUserName] = useState<string>('');
-  const [teamName, setTeamName] = useState<string>('');
-  const [dataReady, setDataReady] = useState(false);
-  
-  useEffect(() => {
-    // Check for user data with retries
-    let attempts = 0;
-    const maxAttempts = 10;
-    
-    const checkUserData = () => {
-      const user = getGlobalUser();
-      
-      if(user) {
-        setUserName(user.full_name || user.username || '');
-        setTeamName(user.team_name || '');
-        setDataReady(true);
-      } else if (attempts < maxAttempts) {
-        attempts++;
-        setTimeout(checkUserData, 200);
-      } else {
-        // After max attempts, stop loading dots
-        setDataReady(true);
-      }
-    };
-
-    checkUserData();
-  }, []);
-
-  return(
-    <header className="header">
-      <div className="header__left">
-        <div className="header__text">
-          <h1 className="header__title">{title}</h1>
-          <h2 className="header__subtitle">
-            {!dataReady ? (
-              // Show dots while loading
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                <DotFlashing size="small" />
-              </span>
-            ) : (
-              // Show actual data
-              <>
-                Welcome back {userName || 'User'}
-                {teamName && ` | ${teamName}`}
-              </>
-            )}
-          </h2>
-        </div>
-      </div>
-
-      <div className="header__center">
-        <input type="text" placeholder="Search dashboards, products, clients..." className="header__search" />
-      </div>
-
-      <div className="header__right">
-        <a href="/my-profile"><FiBell className="header__icon"/></a>
-        <a href="/my-profile"><FiUser className="header__icon"/></a>
-      </div>
-    </header>
-  );
-}
-___________________
-import React from 'react';
-import './AuthenticationLoading.css';
-
-export default function AuthenticationLoading() {
-  return (
-    <div className="auth-loading-wrapper">
-      <div className="auth-loading-container">
-        <div className="auth-loading-logo">
-          <div className="auth-loading-icon">
-            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-              <circle cx="32" cy="32" r="30" stroke="#00965e" strokeWidth="4" strokeLinecap="round" strokeDasharray="4 4" className="auth-loading-circle"/>
-            </svg>
-          </div>
-        </div>
-        
-        <h2 className="auth-loading-title">QDI Portal</h2>
-        <p className="auth-loading-text">Authenticating your session</p>
-        
-        <div className="auth-loading-dots">
-          <div className="auth-dot"></div>
-          <div className="auth-dot"></div>
-          <div className="auth-dot"></div>
-        </div>
-      </div>
-    </div>
-  );
-}
-___________________
+-------------------
