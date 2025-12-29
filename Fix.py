@@ -289,3 +289,158 @@ def get_current_user_trino_data(request):
             'success': False,
             'error': 'Failed to fetch Trino data'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+----------------------------------
+from typing import List, Dict, Any, Optional
+import trino
+from django.conf import settings
+import logging
+
+from apps.trino_integration.exceptions import (
+    TrinoConnectionError,
+    TrinoQueryError,
+    TrinoConfigurationError,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class TrinoRepository:
+    def __init__(self):
+        """Initialize repository with Trino configuration."""
+        self._config = self._validate_configuration()
+        self._connection = None
+        self._cursor = None
+
+    def _validate_configuration(self) -> Dict[str, Any]:
+        try:
+            config = settings.TRINO_CONFIG
+            required_keys = ['host', 'port', 'user', 'catalog', 'schema']
+            
+            for key in required_keys:
+                if key not in config:
+                    raise TrinoConfigurationError(
+                        f"Missing required configuration: {key}"
+                    )
+            
+            return config
+        except AttributeError as e:
+            raise TrinoConfigurationError(
+                "TRINO_CONFIG not found in settings",
+                original_exception=e
+            )
+
+    def connect(self) -> None:
+        try:
+            self._connection = trino.dbapi.connect(
+                host=self._config['host'],
+                port=self._config['port'],
+                user=self._config['user'],
+                catalog=self._config['catalog'],
+                schema=self._config['schema'],
+                http_scheme='http',
+            )
+            self._cursor = self._connection.cursor()
+            logger.info("Successfully connected to Trino")
+        except Exception as e:
+            logger.error(f"Failed to connect to Trino: {str(e)}")
+            raise TrinoConnectionError()
+
+    def disconnect(self) -> None:
+        """Safely close Trino connection and cursor."""
+        try:
+            if self._cursor:
+                self._cursor.close()
+                self._cursor = None
+            if self._connection:
+                self._connection.close()
+                self._connection = None
+            logger.info("Disconnected from Trino")
+        except Exception as e:
+            logger.warning(f"Error during disconnect: {str(e)}")
+
+    def execute_query(self, query: str) -> List[Dict[str, Any]]:
+        if not self._cursor:
+            raise TrinoConnectionError("Not connected to Trino. Call connect() first.")
+        
+        try:
+            logger.info(f"Executing query: {query}")
+            self._cursor.execute(query)
+            
+            columns = [desc[0] for desc in self._cursor.description]
+            rows = self._cursor.fetchall()
+            
+            results = [
+                dict(zip(columns, row))
+                for row in rows
+            ]
+            
+            logger.info(f"Query executed successfully. Returned {len(results)} rows.")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Query execution failed: {str(e)}")
+            raise TrinoQueryError(
+                f"Failed to execute query: {query}",
+                original_exception=e
+            )
+
+    def fetch_all(self, table_name: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        # INPUT VALIDATION - prevent SQL injection
+        if not table_name or not table_name.replace('.', '').replace('_', '').isalnum():
+            raise ValueError("Invalid table name")
+        
+        query = f"SELECT * FROM {table_name}"
+        if limit:
+            if not isinstance(limit, int) or limit < 1:
+                raise ValueError("Limit must be a positive integer")
+            query += f" LIMIT {limit}"
+        
+        return self.execute_query(query)
+
+    def fetch_with_filter(
+        self,
+        table_name: str,
+        filters: Dict[str, Any],
+        limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        # INPUT VALIDATION - prevent SQL injection
+        if not table_name or not table_name.replace('.', '').replace('_', '').isalnum():
+            raise ValueError("Invalid table name")
+        
+        # Validate filter column names
+        for column in filters.keys():
+            if not column.replace('_', '').isalnum():
+                raise ValueError(f"Invalid column name: {column}")
+        
+        # Build WHERE clauses safely
+        where_clauses = []
+        for column, value in filters.items():
+            if isinstance(value, str):
+                # Escape single quotes to prevent SQL injection
+                safe_value = value.replace("'", "''")
+                where_clauses.append(f"{column} = '{safe_value}'")
+            elif isinstance(value, (int, float)):
+                where_clauses.append(f"{column} = {value}")
+            elif value is None:
+                where_clauses.append(f"{column} IS NULL")
+            else:
+                raise ValueError(f"Unsupported filter value type: {type(value)}")
+        
+        query = f"SELECT * FROM {table_name} WHERE {' AND '.join(where_clauses)}"
+        if limit:
+            if not isinstance(limit, int) or limit < 1:
+                raise ValueError("Limit must be a positive integer")
+            query += f" LIMIT {limit}"
+        
+        return self.execute_query(query)
+
+    def __enter__(self):
+        """Context manager entry."""
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.disconnect()
+        return False
+
