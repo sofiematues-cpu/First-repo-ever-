@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { LayoutDashboard } from 'lucide-react';
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { Header } from '@/components/layout/header';
 import { TableauAPI } from '@/lib/api';
 import { AuthProvider } from '@/app/AuthProvider';
@@ -96,25 +97,25 @@ function ScrollSection({
     <section className="insight-section">
       <div className="insight-section-content">
         <h2 className="insight-section-title">{title}</h2>
-        <div>
-          <div id={`scroll-${title}`} className="insight-scroll" ref={scrollRef}>
-            {cards.map((card) => (
-              <Card key={card.id} card={card} onExpand={onExpand} />
-            ))}
-          </div>
-        </div>
+        {hasMore && (
+          <button className="insight-show-more" onClick={onShowMore}>
+            Show More
+          </button>
+        )}
       </div>
-      <button onClick={scrollLeft} className="insight-nav-btn insight-nav-left">
-        <FiChevronLeft />
-      </button>
-      <button onClick={scrollRight} className="insight-nav-btn insight-nav-right">
-        <FiChevronRight />
-      </button>
-      {hasMore && (
-        <div className="insight-expand-btn" onClick={onShowMore}>
-          Show More
+      <div style={{ position: 'relative' }}>
+        <div id={`scroll-${title}`} className="insight-scroll" ref={scrollRef}>
+          {cards.map((card) => (
+            <Card key={card.id} card={card} onExpand={onExpand} />
+          ))}
         </div>
-      )}
+        <button onClick={scrollLeft} className="insight-nav-btn insight-nav-left">
+          <FiChevronLeft />
+        </button>
+        <button onClick={scrollRight} className="insight-nav-btn insight-nav-right">
+          <FiChevronRight />
+        </button>
+      </div>
     </section>
   );
 }
@@ -224,7 +225,7 @@ export default function Insights() {
         cards={permissionedCards}
         onExpand={handleExpand}
         onShowMore={() => handleShowMore('permissioned')}
-        hasMore={allPermissionedCards.length > 10}
+        hasMore={true}
       />
 
       <ScrollSection
@@ -232,7 +233,7 @@ export default function Insights() {
         cards={pinnedCards}
         onExpand={handleExpand}
         onShowMore={() => handleShowMore('pinned')}
-        hasMore={allPinnedCards.length > 10}
+        hasMore={true}
       />
 
       <ScrollSection
@@ -240,7 +241,7 @@ export default function Insights() {
         cards={recommendedCards}
         onExpand={handleExpand}
         onShowMore={() => handleShowMore('recommended')}
-        hasMore={allRecommendedCards.length > 10}
+        hasMore={true}
       />
 
       <SectionModal
@@ -254,4 +255,36 @@ export default function Insights() {
       {tableauUrl && <TableauModal url={tableauUrl} onClose={handleCloseTableau} />}
     </div>
   );
+}
+------------------
+.insight-show-more {
+  background: none;
+  border: none;
+  color: #008043;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.insight-show-more:hover {
+  color: #00a854;
+  text-decoration: underline;
+}
+
+.insight-section-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.insight-modal-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding: 2rem;
+  overflow-y: auto;
+  max-height: calc(95vh - 100px);
 }
