@@ -5,7 +5,7 @@ import { LayoutDashboard } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { TableauAPI } from '@/lib/api';
 import { AuthProvider } from '@/app/AuthProvider';
-import SectionModal from '@/components/features/insights/SectionModal'; // FIXED PATH
+import SectionModal from './SectionModal'; // Adjust path as needed
 
 interface InsightCard {
   id: number;
@@ -26,6 +26,7 @@ interface InsightCard {
   owner: string;
 }
 
+// Simplified Card for Main Page (no owner, no last refresh)
 function SimplifiedCard({ card, onExpand }: { card: InsightCard; onExpand: (url: string) => void }) {
   return (
     <div
@@ -62,7 +63,6 @@ function SimplifiedCard({ card, onExpand }: { card: InsightCard; onExpand: (url:
           justifyContent: 'center',
           marginBottom: '0.875rem',
           color: '#008043',
-          transition: 'all 0.3s ease',
         }}
       >
         <LayoutDashboard size={28} strokeWidth={1.5} />
@@ -265,10 +265,12 @@ function TableauModal({ url, onClose }: { url: string; onClose: () => void }) {
 export default function Insights() {
   const [tableauUrl, setTableauUrl] = useState<string | null>(null);
   
+  // Main page cards (responsive amount)
   const [permissionedCards, setPermissionedCards] = useState<InsightCard[]>([]);
   const [pinnedCards, setPinnedCards] = useState<InsightCard[]>([]);
   const [recommendedCards, setRecommendedCards] = useState<InsightCard[]>([]);
   
+  // All cards for modal (10 each)
   const [allPermissionedCards, setAllPermissionedCards] = useState<InsightCard[]>([]);
   const [allPinnedCards, setAllPinnedCards] = useState<InsightCard[]>([]);
   const [allRecommendedCards, setAllRecommendedCards] = useState<InsightCard[]>([]);
@@ -299,26 +301,14 @@ export default function Insights() {
     };
   }, []);
 
+  // EXACT API CALLING METHOD FROM YOUR CODE
   useEffect(() => {
     const fetchDashboards = async () => {
       try {
-        // ADDED: Better error handling and data validation
-        const data = await TableauAPI.explore('', 300);
-        
-        // ADDED: Validate response
-        if (!data || !data.results || !Array.isArray(data.results)) {
-          console.error('Invalid API response:', data);
-          return;
-        }
+        const data = await TableauAPI.explore('', 100); // CHANGED TO 100 AS YOU SPECIFIED
+        const dashboards = data.results || [];
 
-        const dashboards = data.results;
-
-        // ADDED: Check if we have enough data
-        if (dashboards.length === 0) {
-          console.warn('No dashboards returned from API');
-          return;
-        }
-
+        // Transform API response to InsightCard format
         const transformedCards: InsightCard[] = dashboards.map((dashboard: any) => ({
           id: dashboard.id,
           customized_name: dashboard.customized_name,
@@ -338,35 +328,27 @@ export default function Insights() {
           owner: dashboard.owner || 'Unknown',
         }));
 
+        // Sort by view count
         const sortedByViews = [...transformedCards].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
 
-        // ADDED: Safe slicing with length checks
-        const totalCards = sortedByViews.length;
-        const allPermissioned = sortedByViews.slice(0, Math.min(10, totalCards));
-        const allPinned = sortedByViews.slice(10, Math.min(20, totalCards));
-        const allRecommended = sortedByViews.slice(20, Math.min(30, totalCards));
+        // CHANGED: Section order - Permissioned first, then Pinned, then Recommended
+        // Store ALL 10 cards for modal
+        setAllPermissionedCards(sortedByViews.slice(0, 10));
+        setAllPinnedCards(sortedByViews.slice(10, 20));
+        setAllRecommendedCards(sortedByViews.slice(20, 30));
 
-        setAllPermissionedCards(allPermissioned);
-        setAllPinnedCards(allPinned);
-        setAllRecommendedCards(allRecommended);
-
-        setPermissionedCards(allPermissioned.slice(0, cardsToShow));
-        setPinnedCards(allPinned.slice(0, cardsToShow));
-        setRecommendedCards(allRecommended.slice(0, cardsToShow));
+        // Show only responsive amount on main page
+        setPermissionedCards(sortedByViews.slice(0, cardsToShow));
+        setPinnedCards(sortedByViews.slice(10, 10 + cardsToShow));
+        setRecommendedCards(sortedByViews.slice(20, 20 + cardsToShow));
 
       } catch (err: any) {
         console.error('Error fetching dashboards:', err);
-        // ADDED: More detailed error logging
-        console.error('Error details:', {
-          message: err.message,
-          response: err.response?.data,
-          status: err.response?.status,
-        });
       }
     };
 
     fetchDashboards();
-  }, [cardsToShow]);
+  }, [cardsToShow]); // Re-fetch when cardsToShow changes
 
   const handleExpand = (url: string) => {
     setTableauUrl(url);
@@ -419,12 +401,13 @@ export default function Insights() {
             maxWidth: 'calc(100vw - 100px)',
           }}
         >
+          {/* SECTION ORDER: Permissioned → Pinned → Recommended */}
           <GridSection
             title="Permissioned"
             cards={permissionedCards}
             onExpand={handleExpand}
             onShowMore={() => handleShowMore('permissioned')}
-            hasMore={allPermissionedCards.length > cardsToShow}
+            hasMore={allPermissionedCards.length > permissionedCards.length}
           />
 
           <GridSection
@@ -432,7 +415,7 @@ export default function Insights() {
             cards={pinnedCards}
             onExpand={handleExpand}
             onShowMore={() => handleShowMore('pinned')}
-            hasMore={allPinnedCards.length > cardsToShow}
+            hasMore={allPinnedCards.length > pinnedCards.length}
           />
 
           <GridSection
@@ -440,11 +423,12 @@ export default function Insights() {
             cards={recommendedCards}
             onExpand={handleExpand}
             onShowMore={() => handleShowMore('recommended')}
-            hasMore={allRecommendedCards.length > cardsToShow}
+            hasMore={allRecommendedCards.length > recommendedCards.length}
           />
         </div>
       </div>
 
+      {/* Section Modal */}
       <SectionModal
         isOpen={activeSectionModal !== null}
         onClose={handleCloseModal}
@@ -453,6 +437,7 @@ export default function Insights() {
         onCardExpand={handleExpand}
       />
 
+      {/* Tableau Modal */}
       {tableauUrl && <TableauModal url={tableauUrl} onClose={handleCloseTableau} />}
     </>
   );
