@@ -1,319 +1,3 @@
-import React, { useEffect, useRef } from 'react';
-import { LayoutDashboard } from 'lucide-react';
-
-interface InsightCard {
-  id: number;
-  customized_name: string;
-  site_name: string;
-  url_attempt_1_url_id: string;
-  url_attempt_2_repo: string;
-  url_attempt_2_simple: string;
-  url_id: string;
-  view_index: number;
-  view_name: string;
-  view_repository_url: string;
-  workbook_name: string;
-  workbook_repo_url: string;
-  last_accessed: string;
-  is_public: boolean;
-  view_count: number;
-  owner: string;
-}
-
-interface SectionModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  cards: InsightCard[];
-  onCardExpand: (url: string) => void;
-}
-
-function Card({ card, onExpand }: { card: InsightCard; onExpand: (url: string) => void }) {
-  const getTimeSinceRefresh = (lastAccessed: string): string => {
-    if (!lastAccessed) return 'Unknown';
-    const cleaned = lastAccessed.replace(/[\\\/\[\]$']+/g, '');
-    const updated = new Date(cleaned);
-    const now = new Date();
-
-    if (isNaN(updated.getTime())) return 'Unknown';
-
-    const diffMs = now.getTime() - updated.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-
-    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffMinutes > 0) return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
-    return 'Just now';
-  };
-
-  return (
-    <div
-      style={{
-        minWidth: '260px',
-        maxWidth: '260px',
-        background: 'linear-gradient(135deg, #ffffff 0%, #f0fafb 100%)',
-        border: '1px solid #e5e7eb',
-        borderRadius: '12px',
-        padding: '1.5rem',
-        cursor: 'pointer',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-      onClick={() => onExpand(card.url_attempt_2_repo)}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-8px)';
-        e.currentTarget.style.boxShadow = '0 12px 24px rgba(0, 128, 67, 0.15)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
-    >
-      <div
-        style={{
-          width: '48px',
-          height: '48px',
-          background: 'linear-gradient(135deg, #ff0fdfa 0%, #dcfc6 100%)',
-          borderRadius: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '1rem',
-          color: '#008043',
-          transition: 'all 0.3s ease',
-        }}
-      >
-        <LayoutDashboard size={32} strokeWidth={1.5} />
-      </div>
-
-      <div style={{ marginBottom: '0.5rem' }}>
-        <div
-          style={{
-            fontSize: '1rem',
-            fontWeight: '600',
-            color: '#1f2937',
-            marginBottom: '0.5rem',
-          }}
-        >
-          {card.customized_name || card.view_name}
-        </div>
-        <div
-          style={{
-            fontSize: '0.8125rem',
-            color: '#6b7280',
-            marginTop: '0.25rem',
-          }}
-        >
-          {card.site_name}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: '0.75rem' }}>
-        <div
-          style={{
-            fontSize: '0.8125rem',
-            color: '#6b7280',
-            marginTop: '1rem',
-            justifyContent: 'space-between',
-          }}
-        >
-          {card.workbook_name}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-          Last refresh: {getTimeSinceRefresh(card.last_accessed)}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
-        <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-          Owner: {card.owner || 'Unknown'}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function SectionModal({ isOpen, onClose, title, cards, onCardExpand }: SectionModalProps) {
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-
-    if (isOpen) {
-      window.addEventListener('keydown', handleEscape);
-    }
-
-    return () => {
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: '0',
-        background: 'rgba(0, 0, 0, 0.85)',
-        backdropFilter: 'blur(9px)',
-        zIndex: 3000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-        animation: 'fadeIn 0.25s ease',
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <style>
-        {`
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-          @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-        `}
-      </style>
-
-      <div
-        ref={modalRef}
-        style={{
-          background: 'transparent',
-          borderRadius: '16px',
-          width: '90%',
-          height: '95%',
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'slideUp 0.3s ease',
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '1.25rem 1.75rem',
-            background: 'linear-gradient(135deg, #008043 0%, #00a854 100%)',
-            borderTopLeftRadius: '16px',
-            borderTopRightRadius: '16px',
-          }}
-        >
-          <h2
-            style={{
-              color: '#ffffff',
-              fontSize: '1.25rem',
-              fontWeight: '600',
-              margin: '0',
-            }}
-          >
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: 'none',
-              color: '#ffffff',
-              fontSize: '1.25rem',
-              cursor: 'pointer',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '8px',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-              e.currentTarget.style.transform = 'rotate(90deg)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-              e.currentTarget.style.transform = 'rotate(0deg)';
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Content */}
-        <div
-          style={{
-            background: 'rgba(0, 0, 0, 0.3)',
-            backdropFilter: 'blur(9px)',
-            borderBottomLeftRadius: '16px',
-            borderBottomRightRadius: '16px',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            padding: '2rem',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-              gap: '1.25rem',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              paddingRight: '0.5rem',
-            }}
-          >
-            {cards.map((card) => (
-              <Card key={card.id} card={card} onExpand={onCardExpand} />
-            ))}
-          </div>
-
-          {cards.length === 0 && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                color: '#9ca3af',
-                fontSize: '1rem',
-              }}
-            >
-              No dashboards available
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-----------------------
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
@@ -321,7 +5,7 @@ import { LayoutDashboard } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { TableauAPI } from '@/lib/api';
 import { AuthProvider } from '@/app/AuthProvider';
-import SectionModal from './SectionModal'; // NEW IMPORT
+import SectionModal from '@/components/features/insights/SectionModal'; // FIXED PATH
 
 interface InsightCard {
   id: number;
@@ -342,7 +26,6 @@ interface InsightCard {
   owner: string;
 }
 
-// NEW: Simplified Card Component for Main Page (no owner, no last refresh)
 function SimplifiedCard({ card, onExpand }: { card: InsightCard; onExpand: (url: string) => void }) {
   return (
     <div
@@ -421,7 +104,6 @@ function SimplifiedCard({ card, onExpand }: { card: InsightCard; onExpand: (url:
   );
 }
 
-// NEW: Responsive Grid Section Component
 function GridSection({
   title,
   cards,
@@ -583,7 +265,6 @@ function TableauModal({ url, onClose }: { url: string; onClose: () => void }) {
 export default function Insights() {
   const [tableauUrl, setTableauUrl] = useState<string | null>(null);
   
-  // NEW: Separate state for visible cards and all cards
   const [permissionedCards, setPermissionedCards] = useState<InsightCard[]>([]);
   const [pinnedCards, setPinnedCards] = useState<InsightCard[]>([]);
   const [recommendedCards, setRecommendedCards] = useState<InsightCard[]>([]);
@@ -592,17 +273,15 @@ export default function Insights() {
   const [allPinnedCards, setAllPinnedCards] = useState<InsightCard[]>([]);
   const [allRecommendedCards, setAllRecommendedCards] = useState<InsightCard[]>([]);
 
-  // NEW: Modal state
   const [activeSectionModal, setActiveSectionModal] = useState<'permissioned' | 'pinned' | 'recommended' | null>(null);
 
-  // NEW: Function to determine how many cards to show based on screen width
   const getCardsToShow = () => {
     if (typeof window === 'undefined') return 6;
     const width = window.innerWidth;
-    if (width < 768) return 4; // Phone
-    if (width < 1280) return 6; // Tablet/Laptop
-    if (width < 1920) return 8; // Desktop
-    return 10; // Large screens
+    if (width < 768) return 4;
+    if (width < 1280) return 6;
+    if (width < 1920) return 8;
+    return 10;
   };
 
   const [cardsToShow, setCardsToShow] = useState(6);
@@ -623,8 +302,22 @@ export default function Insights() {
   useEffect(() => {
     const fetchDashboards = async () => {
       try {
+        // ADDED: Better error handling and data validation
         const data = await TableauAPI.explore('', 300);
-        const dashboards = data.results || [];
+        
+        // ADDED: Validate response
+        if (!data || !data.results || !Array.isArray(data.results)) {
+          console.error('Invalid API response:', data);
+          return;
+        }
+
+        const dashboards = data.results;
+
+        // ADDED: Check if we have enough data
+        if (dashboards.length === 0) {
+          console.warn('No dashboards returned from API');
+          return;
+        }
 
         const transformedCards: InsightCard[] = dashboards.map((dashboard: any) => ({
           id: dashboard.id,
@@ -647,22 +340,28 @@ export default function Insights() {
 
         const sortedByViews = [...transformedCards].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
 
-        // CHANGED: New section order - Permissioned first
-        const allPermissioned = sortedByViews.slice(0, 10);
-        const allPinned = sortedByViews.slice(10, 20);
-        const allRecommended = sortedByViews.slice(20, 30);
+        // ADDED: Safe slicing with length checks
+        const totalCards = sortedByViews.length;
+        const allPermissioned = sortedByViews.slice(0, Math.min(10, totalCards));
+        const allPinned = sortedByViews.slice(10, Math.min(20, totalCards));
+        const allRecommended = sortedByViews.slice(20, Math.min(30, totalCards));
 
-        // Store all cards
         setAllPermissionedCards(allPermissioned);
         setAllPinnedCards(allPinned);
         setAllRecommendedCards(allRecommended);
 
-        // Show only responsive amount
         setPermissionedCards(allPermissioned.slice(0, cardsToShow));
         setPinnedCards(allPinned.slice(0, cardsToShow));
         setRecommendedCards(allRecommended.slice(0, cardsToShow));
+
       } catch (err: any) {
         console.error('Error fetching dashboards:', err);
+        // ADDED: More detailed error logging
+        console.error('Error details:', {
+          message: err.message,
+          response: err.response?.data,
+          status: err.response?.status,
+        });
       }
     };
 
@@ -677,7 +376,6 @@ export default function Insights() {
     setTableauUrl(null);
   };
 
-  // NEW: Modal handlers
   const handleShowMore = (section: 'permissioned' | 'pinned' | 'recommended') => {
     setActiveSectionModal(section);
   };
@@ -721,7 +419,6 @@ export default function Insights() {
             maxWidth: 'calc(100vw - 100px)',
           }}
         >
-          {/* CHANGED: Section order - Permissioned first */}
           <GridSection
             title="Permissioned"
             cards={permissionedCards}
@@ -748,7 +445,6 @@ export default function Insights() {
         </div>
       </div>
 
-      {/* NEW: Section Modal */}
       <SectionModal
         isOpen={activeSectionModal !== null}
         onClose={handleCloseModal}
@@ -757,9 +453,7 @@ export default function Insights() {
         onCardExpand={handleExpand}
       />
 
-      {/* Existing Tableau Modal */}
       {tableauUrl && <TableauModal url={tableauUrl} onClose={handleCloseTableau} />}
     </>
   );
 }
---------------------
