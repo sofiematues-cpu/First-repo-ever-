@@ -132,7 +132,7 @@ function ScrollSection({
 
   return (
     <section className="insight-section">
-      <div className="insight-section-content">
+      <div className="insight-section-header">
         <h2 className="insight-section-title">{title}</h2>
         <button className="insight-show-more" onClick={onShowMore}>
           Show More
@@ -174,38 +174,35 @@ function TableauModal({ url, onClose }: { url: string; onClose: () => void }) {
 export default function Insights() {
   const [tableauUrl, setTableauUrl] = useState<string | null>(null);
   
-  // All cards storage
   const [allRecommendedCards, setAllRecommendedCards] = useState<InsightCard[]>([]);
   const [allPinnedCards, setAllPinnedCards] = useState<InsightCard[]>([]);
   const [allPermissionedCards, setAllPermissionedCards] = useState<InsightCard[]>([]);
   
-  // Preview cards (for carousel)
   const [recommendedPreview, setRecommendedPreview] = useState<InsightCard[]>([]);
   const [pinnedPreview, setPinnedPreview] = useState<InsightCard[]>([]);
   const [permissionedPreview, setPermissionedPreview] = useState<InsightCard[]>([]);
   
-  // Expanded section state
   const [expandedSection, setExpandedSection] = useState<'recommended' | 'pinned' | 'permissioned' | null>(null);
   const [visibleCounts, setVisibleCounts] = useState({
-    recommended: 12,
-    pinned: 12,
-    permissioned: 12,
+    recommended: 15,
+    pinned: 15,
+    permissioned: 15,
   });
 
-  // Dynamic card width calculation
   useEffect(() => {
     const updateCardWidth = () => {
       const viewportWidth = window.innerWidth;
       const sidebarWidth = 100;
       const padding = 120;
       const gap = 20;
-      const minCardWidth = 260;
+      const minCardWidth = 240;
       
       const availableWidth = viewportWidth - sidebarWidth - padding;
-      const numCards = Math.floor((availableWidth + gap) / (minCardWidth + gap));
+      const numCards = Math.max(3, Math.floor((availableWidth + gap) / (minCardWidth + gap)));
       const cardWidth = (availableWidth - (gap * (numCards - 1))) / numCards;
       
       document.documentElement.style.setProperty('--dynamic-card-width', `${Math.max(cardWidth, minCardWidth)}px`);
+      document.documentElement.style.setProperty('--grid-columns', `${Math.min(5, numCards)}`);
     };
 
     updateCardWidth();
@@ -213,7 +210,6 @@ export default function Insights() {
     return () => window.removeEventListener('resize', updateCardWidth);
   }, []);
 
-  // Fetch data
   useEffect(() => {
     const fetchDashboards = async () => {
       try {
@@ -241,15 +237,13 @@ export default function Insights() {
 
         const sortedByViews = [...transformedCards].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
 
-        // Store all cards (50 each)
         setAllRecommendedCards(sortedByViews.slice(0, 50));
-        setAllPinnedCards(sortedByViews.slice(50, 100));
-        setAllPermissionedCards(sortedByViews.slice(100, 150));
+        setAllPinnedCards(sortedByViews.slice(0, 50));
+        setAllPermissionedCards(sortedByViews.slice(0, 50));
 
-        // Preview cards (10 each for carousel)
         setRecommendedPreview(sortedByViews.slice(0, 10));
-        setPinnedPreview(sortedByViews.slice(50, 60));
-        setPermissionedPreview(sortedByViews.slice(100, 110));
+        setPinnedPreview(sortedByViews.slice(0, 10));
+        setPermissionedPreview(sortedByViews.slice(0, 10));
       } catch (err: any) {
         console.error('Error fetching dashboards:', err);
       }
@@ -268,7 +262,7 @@ export default function Insights() {
 
   const handleShowMore = (section: 'recommended' | 'pinned' | 'permissioned') => {
     setExpandedSection(section);
-    setVisibleCounts(prev => ({ ...prev, [section]: 12 }));
+    setVisibleCounts(prev => ({ ...prev, [section]: 15 }));
   };
 
   const handleCollapse = () => {
@@ -278,7 +272,7 @@ export default function Insights() {
   const handleLoadMore = (section: 'recommended' | 'pinned' | 'permissioned') => {
     setVisibleCounts(prev => ({
       ...prev,
-      [section]: Math.min(prev[section] + 12, 50),
+      [section]: Math.min(prev[section] + 15, 50),
     }));
   };
 
@@ -337,8 +331,47 @@ export default function Insights() {
     </div>
   );
 }
--------------------
-/* Expanded Section Styles */
+-----
+.insights-page {
+  margin-top: 90px;
+  padding: 2rem;
+}
+
+.insight-section {
+  margin-bottom: 3rem;
+  position: relative;
+}
+
+.insight-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.insight-section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.insight-show-more {
+  background: none;
+  border: none;
+  color: #008043;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.insight-show-more:hover {
+  color: #00a854;
+  text-decoration: underline;
+}
+
 .insight-expanded-section {
   width: 100%;
   padding: 2rem 0;
@@ -349,7 +382,6 @@ export default function Insights() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 2rem;
-  padding: 0 1rem;
 }
 
 .insight-collapse-btn {
@@ -371,9 +403,8 @@ export default function Insights() {
 
 .insight-expanded-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--dynamic-card-width, 280px), 1fr));
+  grid-template-columns: repeat(var(--grid-columns, 5), 1fr);
   gap: 1.5rem;
-  padding: 0 1rem;
   margin-bottom: 2rem;
 }
 
@@ -399,10 +430,8 @@ export default function Insights() {
   background: #008043;
   color: #ffffff;
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 128, 67, 0.3);
 }
 
-/* Dynamic card sizing */
 .insight-card {
   width: var(--dynamic-card-width, 280px);
   min-width: var(--dynamic-card-width, 280px);
@@ -414,4 +443,3 @@ export default function Insights() {
   min-width: 240px;
   max-width: 100%;
 }
---------------
