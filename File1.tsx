@@ -26,7 +26,6 @@ interface SectionModalProps {
   title: string;
   cards: InsightCard[];
   onCardExpand: (url: string) => void;
-  onReturnToModal: () => void;
 }
 
 function Card({ card, onExpand }: { card: InsightCard; onExpand: (url: string) => void }) {
@@ -107,7 +106,7 @@ function Card({ card, onExpand }: { card: InsightCard; onExpand: (url: string) =
   );
 }
 
-export default function SectionModal({ isOpen, onClose, title, cards, onCardExpand, onReturnToModal }: SectionModalProps) {
+export default function SectionModal({ isOpen, onClose, title, cards, onCardExpand }: SectionModalProps) {
   const [columns, setColumns] = useState(3);
 
   useEffect(() => {
@@ -151,10 +150,6 @@ export default function SectionModal({ isOpen, onClose, title, cards, onCardExpa
     if (e.target === e.currentTarget) {
       onClose();
     }
-  };
-
-  const handleCardExpand = (url: string) => {
-    onCardExpand(url);
   };
 
   return (
@@ -268,7 +263,7 @@ export default function SectionModal({ isOpen, onClose, title, cards, onCardExpa
             }}
           >
             {cards.map((card) => (
-              <Card key={card.id} card={card} onExpand={handleCardExpand} />
+              <Card key={card.id} card={card} onExpand={onCardExpand} />
             ))}
           </div>
 
@@ -291,3 +286,67 @@ export default function SectionModal({ isOpen, onClose, title, cards, onCardExpa
     </div>
   );
 }
+-----------------------
+.insight-card {
+  min-width: 260px;
+  max-width: 260px;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fafb 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* DYNAMIC RESPONSIVE SIZING */
+@media (max-width: 640px) {
+  .insight-card {
+    min-width: calc(100vw - 120px) !important;
+    max-width: calc(100vw - 120px) !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .insight-card {
+    min-width: calc(50vw - 150px) !important;
+    max-width: calc(50vw - 150px) !important;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1440px) {
+  .insight-card {
+    min-width: calc(33.33vw - 120px) !important;
+    max-width: calc(33.33vw - 120px) !important;
+  }
+}
+
+@media (min-width: 1441px) and (max-width: 1920px) {
+  .insight-card {
+    min-width: calc(25vw - 100px) !important;
+    max-width: calc(25vw - 100px) !important;
+  }
+}
+
+@media (min-width: 1921px) {
+  .insight-card {
+    min-width: calc(20vw - 90px) !important;
+    max-width: calc(20vw - 90px) !important;
+  }
+}
+
+.insight-scroll {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding-bottom: 0.5rem;
+  scrollbar-width: none;
+}
+
+.insight-scroll::-webkit-scrollbar {
+  display: none;
+}
+________________________
