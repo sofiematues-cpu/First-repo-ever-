@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LayoutDashboard } from 'lucide-react';
 
 interface InsightCard {
@@ -26,9 +26,10 @@ interface SectionModalProps {
   title: string;
   cards: InsightCard[];
   onCardExpand: (url: string) => void;
+  onReturnToModal: () => void;
 }
 
-function Card({ card, onExpand, onClose }: { card: InsightCard; onExpand: (url: string) => void; onClose: () => void }) {
+function Card({ card, onExpand }: { card: InsightCard; onExpand: (url: string) => void }) {
   const getTimeSinceRefresh = (lastAccessed: string): string => {
     if (!lastAccessed) return 'Unknown';
     const cleaned = lastAccessed.replace(/[\\\/\[\]$']+/g, '');
@@ -47,16 +48,13 @@ function Card({ card, onExpand, onClose }: { card: InsightCard; onExpand: (url: 
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onClose();
-    setTimeout(() => onExpand(card.url_attempt_2_repo), 150);
+    onExpand(card.url_attempt_2_repo);
   };
 
   return (
     <div 
       onClick={handleClick}
       style={{
-        minWidth: '280px',
-        maxWidth: '280px',
         background: 'linear-gradient(135deg, #ffffff 0%, #f0fafb 100%)',
         border: '1px solid #e5e7eb',
         borderRadius: '12px',
@@ -109,7 +107,29 @@ function Card({ card, onExpand, onClose }: { card: InsightCard; onExpand: (url: 
   );
 }
 
-export default function SectionModal({ isOpen, onClose, title, cards, onCardExpand }: SectionModalProps) {
+export default function SectionModal({ isOpen, onClose, title, cards, onCardExpand, onReturnToModal }: SectionModalProps) {
+  const [columns, setColumns] = useState(3);
+
+  useEffect(() => {
+    const calculateColumns = () => {
+      const width = window.innerWidth;
+      if (width < 768) return 1;
+      if (width < 1024) return 2;
+      if (width < 1440) return 3;
+      if (width < 1920) return 4;
+      if (width < 2560) return 5;
+      return 6;
+    };
+
+    const updateColumns = () => {
+      setColumns(calculateColumns());
+    };
+
+    updateColumns();
+    window.addEventListener('resize', updateColumns);
+    return () => window.removeEventListener('resize', updateColumns);
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -133,19 +153,26 @@ export default function SectionModal({ isOpen, onClose, title, cards, onCardExpa
     }
   };
 
+  const handleCardExpand = (url: string) => {
+    onCardExpand(url);
+  };
+
   return (
     <div 
       onClick={handleBackdropClick}
       style={{
         position: 'fixed',
-        inset: '0',
+        top: '0',
+        left: '0',
+        right: '0',
+        bottom: '0',
         background: 'rgba(0, 0, 0, 0.85)',
         backdropFilter: 'blur(9px)',
         zIndex: 3000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '2rem',
+        padding: '1rem',
         animation: 'fadeIn 0.25s ease',
       }}
     >
@@ -166,13 +193,13 @@ export default function SectionModal({ isOpen, onClose, title, cards, onCardExpa
         style={{
           background: 'rgba(255, 255, 255, 0.98)',
           borderRadius: '16px',
-          width: '90vw',
-          maxWidth: '1400px',
-          maxHeight: '85vh',
+          width: '98vw',
+          height: '96vh',
           display: 'flex',
           flexDirection: 'column',
           animation: 'slideUp 0.3s ease',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          overflow: 'hidden',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -183,8 +210,7 @@ export default function SectionModal({ isOpen, onClose, title, cards, onCardExpa
             justifyContent: 'space-between',
             padding: '1.5rem 2rem',
             background: 'linear-gradient(135deg, #008043 0%, #00a854 100%)',
-            borderTopLeftRadius: '16px',
-            borderTopRightRadius: '16px',
+            flexShrink: 0,
           }}
         >
           <h2
@@ -231,17 +257,18 @@ export default function SectionModal({ isOpen, onClose, title, cards, onCardExpa
             padding: '2rem',
             overflowY: 'auto',
             overflowX: 'hidden',
+            flex: 1,
           }}
         >
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gridTemplateColumns: `repeat(${columns}, 1fr)`,
               gap: '1.5rem',
             }}
           >
             {cards.map((card) => (
-              <Card key={card.id} card={card} onExpand={onCardExpand} onClose={onClose} />
+              <Card key={card.id} card={card} onExpand={handleCardExpand} />
             ))}
           </div>
 
