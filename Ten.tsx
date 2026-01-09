@@ -1,48 +1,68 @@
-'use client';
+function TableauModal({ url, onClose, card }: { url: string; onClose: () => void; card: InsightCard | null }) {
+  if (!url || !card) return null;
 
-import { useEffect, useState, useRef } from 'react';
-import { LayoutDashboard } from 'lucide-react';
-import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
-import { Header } from '@/components/layout/header';
-import { TableauAPI } from '@/lib/api';
-import { AuthProvider } from '@/app/AuthProvider';
+  const getTimeSinceRefresh = (lastAccessed: string): string => {
+    if (!lastAccessed) return 'Unknown';
+    const cleaned = lastAccessed.replace(/[\\\/\[\]$']+/g, '');
+    const updated = new Date(cleaned);
+    if (isNaN(updated.getTime())) return 'Unknown';
+    
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    };
+    
+    return updated.toLocaleString('en-US', options).replace(',', ' |');
+  };
 
-interface InsightCard {
-  id: number;
-  customized_name: string;
-  site_name: string;
-  url_attempt_1_url_id: string;
-  url_attempt_2_repo: string;
-  url_attempt_2_simple: string;
-  url_id: string;
-  view_index: number;
-  view_name: string;
-  view_repository_url: string;
-  workbook_name: string;
-  workbook_repo_url: string;
-  last_accessed: string;
-  is_public: boolean;
-  view_count: number;
-  owner: string;
-}
+  const getDataQuality = (): string => {
+    const random = Math.floor(Math.random() * 3);
+    return ['Bronze', 'Silver', 'Gold'][random];
+  };
 
-function Card({ card, onExpand }: { card: InsightCard; onExpand: (url: string) => void }) {
+  const dataQuality = getDataQuality();
+
   return (
-    <div className="insight-card" onClick={() => onExpand(card.url_attempt_2_repo)}>
-      <div className="insight-card-icon">
-        <LayoutDashboard size={32} strokeWidth={1.5} />
-      </div>
-      <div className="insight-card-content">
-        <div className="insight-card-header">
-          <div className="insight-card-title">{card.customized_name || card.view_name}</div>
-          <div className="insight-card-tag">{card.site_name}</div>
+    <div className="insight-modal" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="insight-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="insight-modal-header">
+          <div className="insight-modal-header-left">
+            <h2>{card.customized_name || card.view_name}</h2>
+            <button className="insight-info-icon" title="Dashboard Information">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="16" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+            </button>
+          </div>
+          
+          <div className="insight-modal-header-right">
+            <span className="insight-modal-stat">
+              Last Refreshed: {getTimeSinceRefresh(card.last_accessed)}
+            </span>
+            <span className="insight-modal-divider">|</span>
+            <span className="insight-modal-stat">
+              Load Time: 13s
+            </span>
+            <span className="insight-modal-divider">|</span>
+            <span className="insight-modal-stat">
+              Data Quality: <span className={`insight-quality-badge insight-quality-${dataQuality.toLowerCase()}`}>{dataQuality}</span>
+            </span>
+            <button onClick={onClose} className="insight-modal-close">✕</button>
+          </div>
         </div>
-        <div className="insight-card-subtitle">{card.workbook_name}</div>
+
+        <iframe src={url} className="insight-iframe" />
       </div>
     </div>
   );
 }
-
+------------
 function ExpandedSection({
   title,
   allCards,
@@ -55,391 +75,113 @@ function ExpandedSection({
   title: string;
   allCards: InsightCard[];
   visibleCount: number;
-  onExpand: (url: string) => void;
+  onExpand: (url: string, card: InsightCard) => void;  // CHANGED
   onLoadMore: () => void;
   onCollapse: () => void;
   hasMore: boolean;
 }) {
-  const visibleCards = allCards.slice(0, visibleCount);
-
-  return (
-    <div className="insight-expanded-section">
-      <div className="insight-expanded-header">
-        <h2 className="insight-section-title">{title}</h2>
-        <button className="insight-collapse-btn" onClick={onCollapse}>
-          Show Less
-        </button>
-      </div>
-
-      <div className="insight-expanded-grid">
-        {visibleCards.map((card) => (
-          <Card key={card.id} card={card} onExpand={onExpand} />
-        ))}
-      </div>
-
-      {hasMore && (
-        <div className="insight-load-more-container">
-          <button className="insight-load-more-btn" onClick={onLoadMore}>
-            Load More
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ScrollSection({
-  title,
-  cards,
-  onExpand,
-  onShowMore,
-}: {
-  title: string;
-  cards: InsightCard[];
-  onExpand: (url: string) => void;
-  onShowMore: () => void;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const handleWheel = (e: WheelEvent) => {
-    if (scrollRef.current && scrollRef.current.contains(e.target as Node)) {
-      e.preventDefault();
-      scrollRef.current.scrollLeft += e.deltaY;
-    }
-  };
-
-  useEffect(() => {
-    const section = scrollRef.current;
-    if (section) {
-      section.addEventListener('wheel', handleWheel, { passive: false });
-      return () => section.removeEventListener('wheel', handleWheel);
-    }
-  }, []);
-
-  const scrollLeft = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: -300, behavior: 'smooth' });
-    }
-  };
-
-  const scrollRight = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
-    }
-  };
-
-  if (cards.length === 0) return null;
-
-  return (
-    <section className="insight-section">
-      <div className="insight-section-header">
-        <h2 className="insight-section-title">{title}</h2>
-        <button className="insight-show-more" onClick={onShowMore}>
-          Show More
-        </button>
-      </div>
-      <div style={{ position: 'relative' }}>
-        <div className="insight-scroll" ref={scrollRef}>
-          {cards.map((card) => (
-            <Card key={card.id} card={card} onExpand={onExpand} />
-          ))}
-        </div>
-        <button onClick={scrollLeft} className="insight-nav-btn insight-nav-left">
-          <FiChevronLeft />
-        </button>
-        <button onClick={scrollRight} className="insight-nav-btn insight-nav-right">
-          <FiChevronRight />
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function TableauModal({ url, onClose }: { url: string; onClose: () => void }) {
-  if (!url) return null;
-
-  return (
-    <div className="insight-modal" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="insight-modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="insight-modal-header">
-          <h2>Dashboard</h2>
-          <button onClick={onClose}>✕</button>
-        </div>
-        <iframe src={url} className="insight-iframe" />
-      </div>
-    </div>
-  );
-}
-
-export default function Insights() {
-  const [tableauUrl, setTableauUrl] = useState<string | null>(null);
-  
-  const [allRecommendedCards, setAllRecommendedCards] = useState<InsightCard[]>([]);
-  const [allPinnedCards, setAllPinnedCards] = useState<InsightCard[]>([]);
-  const [allPermissionedCards, setAllPermissionedCards] = useState<InsightCard[]>([]);
-  
-  const [recommendedPreview, setRecommendedPreview] = useState<InsightCard[]>([]);
-  const [pinnedPreview, setPinnedPreview] = useState<InsightCard[]>([]);
-  const [permissionedPreview, setPermissionedPreview] = useState<InsightCard[]>([]);
-  
-  const [expandedSection, setExpandedSection] = useState<'recommended' | 'pinned' | 'permissioned' | null>(null);
-  const [visibleCounts, setVisibleCounts] = useState({
-    recommended: 15,
-    pinned: 15,
-    permissioned: 15,
-  });
-
-  useEffect(() => {
-    const updateCardWidth = () => {
-      const viewportWidth = window.innerWidth;
-      const sidebarWidth = 100;
-      const padding = 120;
-      const gap = 20;
-      const minCardWidth = 240;
-      
-      const availableWidth = viewportWidth - sidebarWidth - padding;
-      const numCards = Math.max(3, Math.floor((availableWidth + gap) / (minCardWidth + gap)));
-      const cardWidth = (availableWidth - (gap * (numCards - 1))) / numCards;
-      
-      document.documentElement.style.setProperty('--dynamic-card-width', `${Math.max(cardWidth, minCardWidth)}px`);
-      document.documentElement.style.setProperty('--grid-columns', `${Math.min(5, numCards)}`);
-    };
-
-    updateCardWidth();
-    window.addEventListener('resize', updateCardWidth);
-    return () => window.removeEventListener('resize', updateCardWidth);
-  }, []);
-
-  useEffect(() => {
-    const fetchDashboards = async () => {
-      try {
-        const data = await TableauAPI.explore('', 100);
-        const dashboards = data.results || [];
-
-        const transformedCards: InsightCard[] = dashboards.map((dashboard: any) => ({
-          id: dashboard.id,
-          customized_name: dashboard.customized_name,
-          site_name: dashboard.site_name,
-          url_attempt_1_url_id: dashboard.url_attempt_1_url_id,
-          url_attempt_2_repo: dashboard.url_attempt_2_repo || '',
-          url_attempt_2_simple: dashboard.url_attempt_2_simple || '',
-          url_id: dashboard.url_id,
-          view_index: dashboard.view_index,
-          view_name: dashboard.view_name,
-          view_repository_url: dashboard.view_repository_url,
-          workbook_name: dashboard.workbook_name,
-          workbook_repo_url: dashboard.workbook_repo_url,
-          last_accessed: dashboard.last_accessed,
-          is_public: dashboard.is_public,
-          view_count: dashboard.view_count || 0,
-          owner: dashboard.owner || 'Unknown',
-        }));
-
-        const sortedByViews = [...transformedCards].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
-
-        setAllRecommendedCards(sortedByViews.slice(0, 50));
-        setAllPinnedCards(sortedByViews.slice(0, 50));
-        setAllPermissionedCards(sortedByViews.slice(0, 50));
-
-        setRecommendedPreview(sortedByViews.slice(0, 10));
-        setPinnedPreview(sortedByViews.slice(0, 10));
-        setPermissionedPreview(sortedByViews.slice(0, 10));
-      } catch (err: any) {
-        console.error('Error fetching dashboards:', err);
-      }
-    };
-
-    fetchDashboards();
-  }, []);
-
-  const handleExpand = (url: string) => {
-    setTableauUrl(url);
-  };
-
-  const handleCloseTableau = () => {
-    setTableauUrl(null);
-  };
-
-  const handleShowMore = (section: 'recommended' | 'pinned' | 'permissioned') => {
-    setExpandedSection(section);
-    setVisibleCounts(prev => ({ ...prev, [section]: 15 }));
-  };
-
-  const handleCollapse = () => {
-    setExpandedSection(null);
-  };
-
-  const handleLoadMore = (section: 'recommended' | 'pinned' | 'permissioned') => {
-    setVisibleCounts(prev => ({
-      ...prev,
-      [section]: Math.min(prev[section] + 15, 50),
-    }));
-  };
-
-  const getExpandedCards = () => {
-    if (expandedSection === 'recommended') return allRecommendedCards;
-    if (expandedSection === 'pinned') return allPinnedCards;
-    if (expandedSection === 'permissioned') return allPermissionedCards;
-    return [];
-  };
-
-  const getExpandedTitle = () => {
-    if (expandedSection === 'recommended') return 'Recommended';
-    if (expandedSection === 'pinned') return 'Pinned by Me';
-    if (expandedSection === 'permissioned') return 'Permissioned';
-    return '';
-  };
-
-  return (
-    <div className="insights-page">
-      {expandedSection ? (
-        <ExpandedSection
-          title={getExpandedTitle()}
-          allCards={getExpandedCards()}
-          visibleCount={visibleCounts[expandedSection]}
-          onExpand={handleExpand}
-          onLoadMore={() => handleLoadMore(expandedSection)}
-          onCollapse={handleCollapse}
-          hasMore={visibleCounts[expandedSection] < getExpandedCards().length}
-        />
-      ) : (
-        <>
-          <ScrollSection
-            title="Recommended"
-            cards={recommendedPreview}
-            onExpand={handleExpand}
-            onShowMore={() => handleShowMore('recommended')}
-          />
-
-          <ScrollSection
-            title="Pinned by Me"
-            cards={pinnedPreview}
-            onExpand={handleExpand}
-            onShowMore={() => handleShowMore('pinned')}
-          />
-
-          <ScrollSection
-            title="Permissioned"
-            cards={permissionedPreview}
-            onExpand={handleExpand}
-            onShowMore={() => handleShowMore('permissioned')}
-          />
-        </>
-      )}
-
-      {tableauUrl && <TableauModal url={tableauUrl} onClose={handleCloseTableau} />}
-    </div>
-  );
-}
------
-.insights-page {
-  margin-top: 90px;
-  padding: 2rem;
-}
-
-.insight-section {
-  margin-bottom: 3rem;
-  position: relative;
-}
-
-.insight-section-header {
+-----------------
+.insight-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
-}
-
-.insight-section-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-.insight-show-more {
-  background: none;
-  border: none;
-  color: #008043;
-  cursor: pointer;
-  padding: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  transition: color 0.2s;
-}
-
-.insight-show-more:hover {
-  color: #00a854;
-  text-decoration: underline;
-}
-
-.insight-expanded-section {
-  width: 100%;
-  padding: 2rem 0;
-}
-
-.insight-expanded-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-}
-
-.insight-collapse-btn {
+  padding: 1rem 1.5rem;
   background: linear-gradient(135deg, #008043 0%, #00a854 100%);
+  color: #ffffff;
+  min-height: 60px;
+}
+
+.insight-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.insight-modal-header-left h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+  color: #ffffff;
+}
+
+.insight-info-icon {
+  background: rgba(255, 255, 255, 0.2);
   border: none;
   color: #ffffff;
   cursor: pointer;
-  padding: 0.75rem 1.5rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  border-radius: 8px;
-  transition: all 0.3s;
-}
-
-.insight-collapse-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 128, 67, 0.3);
-}
-
-.insight-expanded-grid {
-  display: grid;
-  grid-template-columns: repeat(var(--grid-columns, 5), 1fr);
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.insight-load-more-container {
+  width: 32px;
+  height: 32px;
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 2rem 0;
+  border-radius: 6px;
+  transition: all 0.2s;
 }
 
-.insight-load-more-btn {
-  background: none;
-  border: 2px solid #008043;
-  color: #008043;
-  cursor: pointer;
-  padding: 1rem 3rem;
-  font-size: 1rem;
-  font-weight: 600;
-  border-radius: 8px;
-  transition: all 0.3s;
+.insight-info-icon:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
 }
 
-.insight-load-more-btn:hover {
-  background: #008043;
+.insight-modal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.8125rem;
+}
+
+.insight-modal-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   color: #ffffff;
-  transform: translateY(-2px);
+  white-space: nowrap;
 }
 
-.insight-card {
-  width: var(--dynamic-card-width, 280px);
-  min-width: var(--dynamic-card-width, 280px);
-  max-width: var(--dynamic-card-width, 280px);
+.insight-modal-divider {
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.insight-expanded-grid .insight-card {
-  width: 100%;
-  min-width: 240px;
-  max-width: 100%;
+.insight-quality-badge {
+  padding: 0.25rem 0.625rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.insight-quality-bronze {
+  background: #CD7F32;
+  color: #ffffff;
+}
+
+.insight-quality-silver {
+  background: #C0C0C0;
+  color: #1f2937;
+}
+
+.insight-quality-gold {
+  background: #FFD700;
+  color: #1f2937;
+}
+
+.insight-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #ffffff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s;
+  margin-left: 0.5rem;
+}
+
+.insight-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
 }
