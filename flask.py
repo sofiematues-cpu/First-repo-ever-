@@ -2,16 +2,19 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import IntegrityError
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .models import PinnedCard
 from .serializers import PinCardSerializer, PinnedCardSerializer
-from apps.accounts.models import User
 import logging
 
 logger = logging.getLogger(__name__)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class PinCardView(APIView):
     permission_classes = []
+    authentication_classes = []
 
     def post(self, request):
         serializer = PinCardSerializer(data=request.data)
@@ -25,7 +28,10 @@ class PinCardView(APIView):
         card_id = serializer.validated_data['card_id']
         card_url = serializer.validated_data['card_url']
         
-        if not request.user.is_authenticated:
+        # Get user from oidc_sub if available
+        user = request.user if request.user.is_authenticated else None
+        
+        if not user:
             return Response(
                 {'success': False, 'error': 'User not authenticated'},
                 status=status.HTTP_401_UNAUTHORIZED
@@ -33,7 +39,7 @@ class PinCardView(APIView):
         
         try:
             PinnedCard.objects.create(
-                user=request.user,
+                user=user,
                 card_id=card_id,
                 card_url=card_url
             )
@@ -54,11 +60,15 @@ class PinCardView(APIView):
             )
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UnpinCardView(APIView):
     permission_classes = []
+    authentication_classes = []
 
     def delete(self, request, card_id):
-        if not request.user.is_authenticated:
+        user = request.user if request.user.is_authenticated else None
+        
+        if not user:
             return Response(
                 {'success': False, 'error': 'User not authenticated'},
                 status=status.HTTP_401_UNAUTHORIZED
@@ -66,7 +76,7 @@ class UnpinCardView(APIView):
         
         try:
             pinned_card = PinnedCard.objects.get(
-                user=request.user,
+                user=user,
                 card_id=card_id
             )
             pinned_card.delete()
@@ -87,18 +97,22 @@ class UnpinCardView(APIView):
             )
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class PinnedCardsListView(APIView):
     permission_classes = []
+    authentication_classes = []
 
     def get(self, request):
-        if not request.user.is_authenticated:
+        user = request.user if request.user.is_authenticated else None
+        
+        if not user:
             return Response(
                 {'success': True, 'data': []},
                 status=status.HTTP_200_OK
             )
         
         try:
-            pinned_cards = PinnedCard.objects.filter(user=request.user)
+            pinned_cards = PinnedCard.objects.filter(user=user)
             serializer = PinnedCardSerializer(pinned_cards, many=True)
             return Response(
                 {'success': True, 'data': serializer.data},
@@ -112,8 +126,10 @@ class PinnedCardsListView(APIView):
             )
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class PinnedCardsHealthView(APIView):
     permission_classes = []
+    authentication_classes = []
     
     def get(self, request):
         return Response(
