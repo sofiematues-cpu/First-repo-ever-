@@ -1,19 +1,35 @@
-const handleShowMore = (section: 'recommended' | 'permissioned' | 'pinned') => {
-  if (section === 'recommended') {
-    setShowMoreRecommended(true);
-  } else if (section === 'permissioned') {
-    setShowMorePermissioned(true);
-  } else if (section === 'pinned') {
-    setShowMorePinned(true);
-  }
-};
----------------------
+export interface PinnedCard {
+  card_id: number;
+  customized_name: string;
+  url_id: string;
+  view_name: string;
+  view_repository_url: string;
+  view_index: number;
+  workbook_name: string;
+  workbook_repo_url: string;
+  site_name: string;
+  site_url_namespace: string;
+  last_accessed: string;
+  is_public: boolean;
+  url_attempt_1_url_id: string;
+  url_attempt_2_repo: string;
+  url_attempt_3_simple: string;
+  pinned_at: string;
+}
+
+export interface PinCardResponse {
+  success: boolean;
+  message?: string;
+  data?: PinnedCard[];
+  error?: string;
+}
+----------------------
 const LoadPinnedCards = async () => {
   try {
     setPinnedCardsLoading(true);
     const response = await getPinnedCards();
     if (response.success && response.data) {
-      const cards: InsightCard[] = response.data.map((pinnedCard) => ({
+      const cards: InsightCard[] = response.data.map((pinnedCard: any) => ({
         id: pinnedCard.card_id,
         customized_name: pinnedCard.customized_name || '',
         url_id: pinnedCard.url_id || '',
@@ -38,31 +54,3 @@ const LoadPinnedCards = async () => {
     setPinnedCardsLoading(false);
   }
 };
--------------------
-class PinnedCardSerializer(serializers.ModelSerializer):
-    """Serializer for returning pinned cards - returns all fields with correct names"""
-    
-    # Map database field names to API response names
-    card_id = serializers.IntegerField(source='card_id')
-    
-    class Meta:
-        model = PinnedCard
-        fields = [
-            'card_id',
-            'customized_name',
-            'url_id',
-            'view_name',
-            'view_repository_url',
-            'view_index',
-            'workbook_name',
-            'workbook_repo_url',
-            'site_name',
-            'site_url_namespace',
-            'last_accessed',
-            'is_public',
-            'url_attempt_1_url_id',
-            'url_attempt_2_repo',
-            'url_attempt_3_simple',
-            'pinned_at',
-        ]
----------------------
