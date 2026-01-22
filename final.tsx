@@ -1,95 +1,87 @@
-/* Updated .insight-scroll for Recommended and Permissioned sections */
-.insight-scroll {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1rem;
-    width: 100%;
-    overflow: hidden;
-}
-
-/* Hide scrollbar */
-.insight-scroll::-webkit-scrollbar {
-    display: none;
-}
-
-/* Card sizing - let grid control the width */
-.insight-card {
-    width: 100%;
-    min-width: 0; /* Important for grid children */
-    max-width: 100%;
-    height: 220px;
-    background: linear-gradient(135deg, #ffffff 0%, #f0fafb 100%);
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 1.5rem;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-    flex-shrink: 0;
-}
-
-/* Remove the nth-child hiding rule */
-.insight-card:nth-child(n+6) {
-    display: block; /* Changed from none */
-}
-
-/* Responsive breakpoints for Recommended/Permissioned */
-/* Small laptop ~1280px: 5 cards */
-@media (min-width: 1280px) {
-    .insight-scroll {
-        grid-template-columns: repeat(5, 1fr);
+/* Smaller screens - compact sections */
+@media (max-width: 1440px) {
+    .insight-section {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        max-height: none;
+        overflow: visible;
     }
 }
 
-/* Larger monitors ~1600px: 6-7 cards */
-@media (min-width: 1600px) {
-    .insight-scroll {
-        grid-template-columns: repeat(6, 1fr);
+@media (max-width: 1280px) {
+    .insight-section {
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
     }
 }
 
-@media (min-width: 1800px) {
-    .insight-scroll {
-        grid-template-columns: repeat(7, 1fr);
+
+
+
+
+/* Smaller cards for smaller screens */
+@media (max-width: 1440px) {
+    .insight-card {
+        height: 140px;
+        padding: 1rem;
     }
 }
 
-/* Huge monitors ~1920px+: 8-9 cards */
-@media (min-width: 1920px) {
-    .insight-scroll {
-        grid-template-columns: repeat(8, 1fr);
+@media (max-width: 1280px) {
+    .insight-card {
+        height: 120px;
+        padding: 0.75rem;
     }
 }
 
-@media (min-width: 2200px) {
-    .insight-scroll {
-        grid-template-columns: repeat(9, 1fr);
+@media (max-width: 1024px) {
+    .insight-card {
+        height: 100px;
+        padding: 0.5rem;
     }
 }
 
-/* ============================================ */
-/* PINNED BY ME SECTION - Compact Layout */
-/* ============================================ */
-.pinned-section .insight-scroll,
-section.pinned-section .insight-scroll {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem; /* Smaller gap */
-    width: auto;
+
+
+
+@media (max-width: 1440px) {
+    .insight-scroll {
+        gap: 0.75rem;
+    }
 }
 
-.pinned-section .insight-card,
-section.pinned-section .insight-card {
-    width: auto;
-    min-width: 200px;
-    max-width: 280px;
-    flex: 0 0 auto; /* Don't grow, don't shrink */
+@media (max-width: 1280px) {
+    .insight-scroll {
+        gap: 0.5rem;
+    }
 }
 
-/* If pinned section uses different class structure */
-.insight-section.pinned .insight-scroll {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
+
+
+@media (max-width: 1440px) {
+    .insights-page {
+        padding: 1rem;
+        margin-top: 50px;
+    }
+}
+
+@media (max-width: 1280px) {
+    .insights-page {
+        padding: 0.75rem;
+        margin-top: 45px;
+    }
+}
+
+
+
+@media (max-width: 1280px) {
+    .insight-card h3,
+    .insight-card .card-title {
+        font-size: 0.85rem;
+    }
+    
+    .insight-card p,
+    .insight-card .card-subtitle {
+        font-size: 0.75rem;
+    }
 }
