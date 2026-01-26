@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useState, createContext, useContext, useRef } from 'react';
 import { authApi } from '@/lib/api';
 import SkeletonLoading from '@/components/ui/loading/skeleton/skeletonLoading';
 import AuthenticationLoading from '@/components/ui/loading/auth/authLoading';
@@ -35,19 +35,37 @@ interface TrinoResponse {
     error?: string;
 }
 
-// Cache keys
+// ============================================
+// CACHE CONFIGURATION
+// ============================================
 const USER_CACHE_KEY = 'qdi_user_cache';
 const CACHE_EXPIRY_KEY = 'qdi_cache_expiry';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const AUTH_COMPLETE_KEY = 'qdi_auth_complete';
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
 
-// Get cached user
+// ============================================
+// GLOBAL IN-MEMORY CACHE (fastest)
+// ============================================
+let globalUserData: User | null = null;
+let isAuthenticating = false;
+
+export const setGlobalUser = (user: User | null) => {
+    globalUserData = user;
+};
+
+export const getGlobalUser = (): User | null => {
+    return globalUserData;
+};
+
+// ============================================
+// LOCAL STORAGE CACHE FUNCTIONS
+// ============================================
 const getCachedUser = (): User | null => {
     if (typeof window === 'undefined') return null;
     
     try {
         const expiry = localStorage.getItem(CACHE_EXPIRY_KEY);
         if (expiry && Date.now() > parseInt(expiry)) {
-            // Cache expired
             localStorage.removeItem(USER_CACHE_KEY);
             localStorage.removeItem(CACHE_EXPIRY_KEY);
             return null;
@@ -60,7 +78,6 @@ const getCachedUser = (): User | null => {
     }
 };
 
-// Set cached user
 const setCachedUser = (user: User) => {
     if (typeof window === 'undefined') return;
     
@@ -72,23 +89,22 @@ const setCachedUser = (user: User) => {
     }
 };
 
-// Global user cache (in-memory for current session)
-let globalUserData: User | null = null;
-
-export const setGlobalUser = (user: User | null) => {
-    globalUserData = user;
+// ============================================
+// CHECK IF USER HAS EVER AUTHENTICATED
+// ============================================
+const hasEverAuthenticated = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(AUTH_COMPLETE_KEY) === 'true';
 };
 
-export const getGlobalUser = (): User | null => {
-    return globalUserData;
+const setHasAuthenticated = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(AUTH_COMPLETE_KEY, 'true');
 };
 
-const isFirstAuthentication = (): boolean => {
-    if (typeof window === 'undefined') return true;
-    const hasAuthSession = sessionStorage.getItem('qdi_auth_complete');
-    return !hasAuthSession;
-};
-
+// ============================================
+// CONTEXT
+// ============================================
 const AuthContext = createContext<{
     user: User | null;
     setUser: (user: User | null) => void;
@@ -96,33 +112,52 @@ const AuthContext = createContext<{
     setLoading: (loading: boolean) => void;
 } | null>(null);
 
+// ============================================
+// AUTH PROVIDER COMPONENT
+// ============================================
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [isFirstAuth] = useState(isFirstAuthentication());
+    const [user, setUser] = useState<User | null>(globalUserData);
+    const [loading, setLoading] = useState(!globalUserData);
+    const [showAuthLoading, setShowAuthLoading] = useState(false);
+    const hasCheckedAuth = useRef(false);
 
     useEffect(() => {
+        // Prevent double-checking
+        if (hasCheckedAuth.current) return;
+        hasCheckedAuth.current = true;
+
         async function checkAuth() {
-            // 1. Check in-memory cache first (fastest)
+            // 1. If we have global user, we're done (instant)
             if (globalUserData) {
                 setUser(globalUserData);
                 setLoading(false);
                 return;
             }
 
-            // 2. Check localStorage cache (fast)
+            // 2. Check localStorage cache (very fast)
             const cachedUser = getCachedUser();
             if (cachedUser) {
                 setUser(cachedUser);
                 setGlobalUser(cachedUser);
                 setLoading(false);
                 
-                // Refresh in background (don't wait)
+                // Refresh in background silently
                 refreshUserInBackground();
                 return;
             }
 
-            // 3. No cache - fetch from API
+            // 3. No cache - need to fetch from API
+            // Only show AuthLoading if user has NEVER authenticated before
+            if (!hasEverAuthenticated()) {
+                setShowAuthLoading(true);
+            }
+
+            // Prevent multiple simultaneous auth calls
+            if (isAuthenticating) {
+                return;
+            }
+            isAuthenticating = true;
+
             try {
                 const [currentUser, trinoResponse] = await Promise.all([
                     authApi.getCurrentUser(),
@@ -137,6 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     return;
                 }
 
+                // Merge Trino data
                 const trinoData = trinoResponse as TrinoResponse;
                 if (trinoData.success && trinoData.data) {
                     currentUser.job_title = trinoData.data.job_title || '';
@@ -146,22 +182,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     currentUser.gbl = trinoData.data.gbl || '';
                 }
 
+                // Update all caches
                 setUser(currentUser);
                 setGlobalUser(currentUser);
                 setCachedUser(currentUser);
-                
-                if (typeof window !== 'undefined') {
-                    sessionStorage.setItem('qdi_auth_complete', 'true');
-                }
+                setHasAuthenticated();
                 
                 setLoading(false);
+                setShowAuthLoading(false);
             } catch (error) {
                 console.log('Authentication error:', error);
                 window.location.href = '/accounts/oidc/bnpp-oidc/login/';
+            } finally {
+                isAuthenticating = false;
             }
         }
 
-        // Background refresh function
+        // Background refresh - never blocks UI
         async function refreshUserInBackground() {
             try {
                 const [currentUser, trinoResponse] = await Promise.all([
@@ -182,11 +219,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         currentUser.gbl = trinoData.data.gbl || '';
                     }
                     
-                    // Update caches silently
                     setGlobalUser(currentUser);
                     setCachedUser(currentUser);
                     
-                    // Only update state if data changed
+                    // Only update if data changed
                     setUser(prev => {
                         if (JSON.stringify(prev) !== JSON.stringify(currentUser)) {
                             return currentUser;
@@ -195,17 +231,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     });
                 }
             } catch {
-                // Silent fail for background refresh
+                // Silent fail - user already has cached data
             }
         }
 
         checkAuth();
     }, []);
 
+    // ============================================
+    // RENDER LOGIC
+    // ============================================
+    
+    // Show AuthLoading ONLY on first-ever authentication
+    if (showAuthLoading && !user) {
+        return <AuthenticationLoading />;
+    }
+
+    // Show Skeleton for all other loading states
     if (loading || !user) {
-        if (isFirstAuth) {
-            return <AuthenticationLoading />;
-        }
         return <SkeletonLoading showHeaderSidebar={true} />;
     }
 
@@ -216,6 +259,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
+// ============================================
+// HOOK
+// ============================================
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
