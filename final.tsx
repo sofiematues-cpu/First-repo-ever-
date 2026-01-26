@@ -40,7 +40,6 @@ interface TrinoResponse {
 // ============================================
 const USER_CACHE_KEY = 'qdi_user_cache';
 const CACHE_EXPIRY_KEY = 'qdi_cache_expiry';
-const AUTH_COMPLETE_KEY = 'qdi_auth_complete';
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
 
 // ============================================
@@ -90,16 +89,13 @@ const setCachedUser = (user: User) => {
 };
 
 // ============================================
-// CHECK IF USER HAS EVER AUTHENTICATED
+// CHECK IF THIS IS FIRST AUTHENTICATION
+// (Same logic as your original version)
 // ============================================
-const hasEverAuthenticated = (): boolean => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(AUTH_COMPLETE_KEY) === 'true';
-};
-
-const setHasAuthenticated = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(AUTH_COMPLETE_KEY, 'true');
+const isFirstAuthentication = (): boolean => {
+    if (typeof window === 'undefined') return true;
+    const hasAuthSession = sessionStorage.getItem('qdi_auth_complete');
+    return !hasAuthSession;
 };
 
 // ============================================
@@ -118,7 +114,7 @@ const AuthContext = createContext<{
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(globalUserData);
     const [loading, setLoading] = useState(!globalUserData);
-    const [showAuthLoading, setShowAuthLoading] = useState(false);
+    const [isFirstAuth] = useState(isFirstAuthentication()); // Check ONCE at start
     const hasCheckedAuth = useRef(false);
 
     useEffect(() => {
@@ -147,15 +143,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             // 3. No cache - need to fetch from API
-            // Only show AuthLoading if user has NEVER authenticated before
-            if (!hasEverAuthenticated()) {
-                setShowAuthLoading(true);
-            }
-
             // Prevent multiple simultaneous auth calls
-            if (isAuthenticating) {
-                return;
-            }
+            if (isAuthenticating) return;
             isAuthenticating = true;
 
             try {
@@ -186,10 +175,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(currentUser);
                 setGlobalUser(currentUser);
                 setCachedUser(currentUser);
-                setHasAuthenticated();
+                
+                // Mark auth as complete in sessionStorage
+                if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('qdi_auth_complete', 'true');
+                }
                 
                 setLoading(false);
-                setShowAuthLoading(false);
             } catch (error) {
                 console.log('Authentication error:', error);
                 window.location.href = '/accounts/oidc/bnpp-oidc/login/';
@@ -222,7 +214,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setGlobalUser(currentUser);
                     setCachedUser(currentUser);
                     
-                    // Only update if data changed
                     setUser(prev => {
                         if (JSON.stringify(prev) !== JSON.stringify(currentUser)) {
                             return currentUser;
@@ -231,7 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     });
                 }
             } catch {
-                // Silent fail - user already has cached data
+                // Silent fail
             }
         }
 
@@ -239,16 +230,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     // ============================================
-    // RENDER LOGIC
+    // RENDER LOGIC (Same as your original)
     // ============================================
-    
-    // Show AuthLoading ONLY on first-ever authentication
-    if (showAuthLoading && !user) {
-        return <AuthenticationLoading />;
-    }
-
-    // Show Skeleton for all other loading states
     if (loading || !user) {
+        if (isFirstAuth) {
+            return <AuthenticationLoading />;
+        }
         return <SkeletonLoading showHeaderSidebar={true} />;
     }
 
