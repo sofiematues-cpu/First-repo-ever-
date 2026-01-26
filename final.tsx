@@ -4,6 +4,7 @@ function ExpandedSection({
     visibleCount,
     onExpand,
     onLoadMore,
+    onShowLess,
     onCollapse,
     hasMore,
 }: {
@@ -12,6 +13,7 @@ function ExpandedSection({
     visibleCount: number;
     onExpand: (url: string, card: InsightCard) => void;
     onLoadMore?: () => void;
+    onShowLess?: () => void;
     onCollapse: () => void;
     hasMore: boolean;
 }) {
@@ -39,10 +41,10 @@ function ExpandedSection({
 
             {/* Load More / Show Less Buttons */}
             <div className="insight-load-more-container">
-                {canShowLess && (
+                {canShowLess && onShowLess && (
                     <button
                         className="insight-show-less-btn"
-                        onClick={onCollapse}
+                        onClick={onShowLess}
                     >
                         Show Less
                     </button>
@@ -59,24 +61,3 @@ function ExpandedSection({
         </div>
     );
 }
-
-
-
-.insight-show-less-btn {
-    background: transparent;
-    color: #6b7280;
-    border: 1px solid #e5e7eb;
-    padding: 12px 32px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-right: 12px;
-}
-
-.insight-show-less-btn:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
-}
-
